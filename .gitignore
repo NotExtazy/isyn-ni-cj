@@ -1,0 +1,90 @@
+uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu
+
+# Files and directories to ignore from Git repository
+
+# Database and configuration
+database/
+*.sql
+*.db
+*.sqlite
+
+# Database backups
+assets/backups/
+assets/database_backups/
+temp_backup_progress/
+
+# Temporary and cache files
+*.tmp
+*.temp
+*.cache
+*.log
+error_log
+*.swp
+*.swo
+
+# Upload and data files (sensitive data)
+*.csv
+*.xlsx
+*.xls
+*.docx
+*.pdf
+*.txt
+*.md
+
+# Debug and test files
+debug_*.php
+fix_*.php
+test_*.php
+
+# IDE and editor files
+.vscode/
+.idea/
+*.sublime-*
+.DS_Store
+Thumbs.db
+
+# Node modules and dependencies (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Session and temporary PHP files
+*.session
+*.pid
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# PHPUnit and Testing
+vendor/
+tests/
+composer.lock
+phpunit.xml
+.phpunit.result.cache
+
+# OS Files
+desktop.ini
+
+# Temporary directories
+tmp/
+temp/
+
+# Specific sensitive files
+employee_list.md
+EWAN KO.docx
+Custom_Transactions.csv
+Raw_Transactions.csv
+acash 2026.xlsx
+loads.xlsx
+paybills.xlsx
+services.xlsx

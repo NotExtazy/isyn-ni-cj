@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <h1>Checking BOD Init</h1>
+    <button onclick="checkInit()">Check Initialize</button>
+    <button onclick="checkList()">Check LoadBODList</button>
+    <div id="output" style="white-space: pre-wrap; margin-top: 10px; border: 1px solid #ccc; padding: 10px; max-height: 400px; overflow: auto; font-family: monospace;"></div>
+    
+    <script>
+        function log(msg) {
+            document.getElementById('output').innerText += msg + "\n";
+            console.log(msg);
+        }
+
+        function checkInit() {
+            document.getElementById('output').innerText = "Running Initialize...\n";
+            
+            fetch('../../routes/profiling/bod.route.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=Initialize'
+            })
+            .then(response => response.text())
+            .then(text => {
+                log("Response Length: " + text.length);
+                log("Raw Response: " + text);
+                try {
+                    const json = JSON.parse(text);
+                    if (json.YRLIST) {
+                        log("Success! YRLIST count: " + json.YRLIST.length);
+                        alert("Initialize Success! Found " + json.YRLIST.length + " years.");
+                    } else {
+                        log("Warning: JSON valid but no YRLIST.");
+                        alert("Initialize Warning: No YRLIST.");
+                    }
+                } catch(e) {
+                    log("JSON Parse Error: " + e.message);
+                    alert("Initialize FAIL: JSON Parse Error.");
+                }
+            })
+            .catch(err => {
+                log("Fetch Error: " + err);
+                alert("Initialize Fetch Error.");
+            });
+        }
+
+        function checkList() {
+            document.getElementById('output').innerText = "Running LoadBODList...\n";
+            
+            fetch('../../routes/profiling/bod.route.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=LoadBODList&Year=All'
+            })
+            .then(response => response.text())
+            .then(text => {
+                log("Response Length: " + text.length);
+                // log("Raw Response: " + text.substring(0, 500) + "..."); // Truncate
+                try {
+                    const json = JSON.parse(text);
+                    if (json.BODLIST) {
+                        log("Success! BODLIST count: " + json.BODLIST.length);
+                        alert("LoadBODList Success! Found " + json.BODLIST.length + " items.");
+                    } else {
+                        log("Warning: JSON valid but no BODLIST.");
+                        alert("LoadBODList Warning: No BODLIST.");
+                    }
+                } catch(e) {
+                    log("JSON Parse Error: " + e.message);
+                    alert("LoadBODList FAIL: JSON Parse Error.");
+                }
+            })
+            .catch(err => {
+                log("Fetch Error: " + err);
+                alert("LoadBODList Fetch Error.");
+            });
+        }
+    </script>
+</body>
+</html>

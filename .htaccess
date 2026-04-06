@@ -1,0 +1,21 @@
+RewriteEngine On
+
+# Redirect direct .php requests to extensionless version
+RewriteCond %{THE_REQUEST} ^[A-Z]{3,}\s([^.]+)\.php [NC]
+RewriteRule ^ %1 [R=301,L]
+
+# Do not rewrite existing directories
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Exclude assets and specific directories from rewriting
+RewriteCond %{REQUEST_URI} ^/assets/ [OR]
+RewriteCond %{REQUEST_URI} ^/process/ [OR]
+RewriteCond %{REQUEST_URI} ^/routes/ [OR]
+RewriteCond %{REQUEST_URI} ^/includes/ [OR]
+RewriteCond %{REQUEST_URI} ^/reports/ [OR]
+RewriteCond %{REQUEST_URI} \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ [NC]
+RewriteRule ^ - [L]
+
+# Route all other requests to router.php
+RewriteRule ^.*$ router.php [L,QSA]

@@ -1,0 +1,134 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Poppins", sans-serif;
+}
+
+.bg-login {
+    /* background-image: url('../images/bg.png'); */
+    background-image: url('../images/freepic_bg.jpg');
+    background-size: cover;
+    background-repeat: no-repeat;
+}
+
+.logo-login{
+    width: 20rem;
+    justify-content: center;
+}
+
+section {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+}
+
+section .left-image {
+    position: relative;
+    width: 50%;
+    height: 100%;
+}
+
+section .left-image:before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(225deg, #747474, #000000);
+    z-index: 1;
+    mix-blend-mode: screen;
+}
+
+.error-message {
+    color: red;
+}
+
+section .left-image img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+section .content {
+    display: flex;
+    width: 50%;
+    height: 100%;
+    justify-content: center;
+    align-items: center;
+}
+
+section .content .fContent {
+    width: 50%;
+}
+
+section .content .fContent h2 {
+    font-weight: 600;
+    margin-bottom: 50px;
+    letter-spacing: 1px;
+}
+
+section .content .fContent .inputBx {
+    margin-bottom: 20px;
+}
+
+section .content .fContent .forgot {
+    margin-bottom: 70px;
+    /* text-align: right; */
+}
+
+section .content .fContent .forgot a {
+    text-decoration: none;
+}
+
+section .content .fContent .inputBx button {
+    width: 100%;
+    padding: 10px;
+    font-weight: 400;
+    letter-spacing: 1px;
+}
+
+section .content .fContent .signup {
+    text-align: center;
+}
+
+section .content .fContent .signup span {
+    color: #606060;
+}
+
+section .content .fContent .signup span a {
+    text-decoration: none;
+}
+
+@media (max-width: 768px) {
+    section .left-image {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+    }
+
+    section .content {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+    }
+
+    section .content .fContent {
+        width: 100%;
+        padding: 50px;
+        background: rgba(255, 255, 255, 0.9);
+        margin: 50px;
+    }
+
+
+}
