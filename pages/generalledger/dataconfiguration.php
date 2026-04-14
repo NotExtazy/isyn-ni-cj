@@ -206,218 +206,178 @@
                                 <form action="" novalidate class="needs-validation">
                                     <div class="p-3">
                                         <div class="row">
-                                            <div class=" col-md-6 mb-2">
-                                                <label for="region" class="form-label mt-2 mx-2">Month: </label>
-                                                <input type="date" class="form-control" required>
-                                                <div class="invalid-feedback"> Please select month</div>
+                                            <div class="col-md-6 mb-2">
+                                                <label for="yeMonth" class="form-label mt-2 mx-2">Year-End Date:</label>
+                                                <input type="date" class="form-control" id="yeMonth" required>
+                                                <div class="invalid-feedback">Please select year-end date</div>
                                             </div>
-                                            <div class=" col-md-6 mb-2">
-                                                <label for="region" class="form-label mt-2 mx-2">Funding: </label>
-                                                <select name="" class="form-select" id="" required>
-                                                    <option value="" selected>Select</option>
-                                                    <option value="">...</option>
-                                                    <option value="">...</option>
+                                            <div class="col-md-6 mb-2">
+                                                <label for="yeFundSelect" class="form-label mt-2 mx-2">Funding:</label>
+                                                <select class="form-select" id="yeFundSelect" required>
+                                                    <option value="" selected>Select Fund</option>
                                                 </select>
-                                                <div class="invalid-feedback"> Please select funding</div>
+                                                <div class="invalid-feedback">Please select funding</div>
                                             </div>
                                         </div>
 
-                                        <table class="table table-borderless " style="background-color: white;">
-                                            <thead>
-                                                <tr>
-                                                    <th>
-                                                        Account No.
-                                                    </th>
-                                                    <th>
-                                                        Account Title
-                                                    </th>
-                                                    <th>
-                                                        Beginning Balance
-                                                    </th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr>
-                                                    <td></td>
-                                                    <td></td>
-                                                    <td></td>
-                                                </tr>
-                                                <tr>
-                                                    <td></td>
-                                                    <td></td>
-                                                    <td></td>
-                                                </tr>
-                                                <tr>
-                                                    <td></td>
-                                                    <td></td>
-                                                    <td></td>
-                                                </tr>
-                                                <tr>
-                                                    <td></td>
-                                                    <td></td>
-                                                    <td></td>
-                                                </tr>
-                                                <tr>
-                                                    <td></td>
-                                                    <td></td>
-                                                    <td></td>
-                                                </tr>
-                                                <tr>
-                                                    <td></td>
-                                                    <td></td>
-                                                    <td></td>
-                                                </tr>
-                                                <tr>
-                                                    <td></td>
-                                                    <td></td>
-                                                    <td></td>
-                                                </tr>
-                                                <tr>
-                                                    <td></td>
-                                                    <td></td>
-                                                    <td></td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
+                                        <div class="row mb-3">
+                                            <div class="col-12">
+                                                <button class="btn btn-primary" type="button" id="btnLoadYE">
+                                                    <i class="fa-solid fa-calculator"></i> Calculate Year-End Balances
+                                                </button>
+                                                <button class="btn btn-success" type="button" id="btnLockYE">
+                                                    <i class="fa-solid fa-lock"></i> Lock Year-End
+                                                </button>
+                                                <button class="btn btn-warning" type="button" id="btnUnlockYE">
+                                                    <i class="fa-solid fa-unlock"></i> Unlock Year-End
+                                                </button>
+                                            </div>
+                                        </div>
 
-                                        <div class="col-md-12 mt-4 mb-5">
-                                            <p class="fw-medium fs-5 my-2">Edit Amount</p>
+                                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                            <table class="table table-borderless table-hover bg-white" id="yeTable">
+                                                <thead style="position: sticky; top: 0; background-color: white; z-index: 10;">
+                                                    <tr>
+                                                        <th>Account No.</th>
+                                                        <th>Account Title</th>
+                                                        <th>Category</th>
+                                                        <th class="text-end">Beginning Balance</th>
+                                                        <th class="text-end">Total Debits</th>
+                                                        <th class="text-end">Total Credits</th>
+                                                        <th class="text-end">Year-End Balance</th>
+                                                        <th>Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="yeTableBody">
+                                                    <tr>
+                                                        <td colspan="8" class="text-center text-muted">Please select date and fund, then click Calculate</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-12">
+                                        <div class="p-3">
+                                            <p class="fw-medium fs-5 my-2 mb-3">Edit Year-End Balance</p>
                                             <hr style="height: 1px">
                                             <div class="form-group row mb-2">
-                                                <label for="date" class="col-sm-2 col-form-label"> Account No.</label>
+                                                <label for="yeAccountNo" class="col-sm-2 col-form-label">Account No.</label>
                                                 <div class="col-sm-5">
-                                                    <input type="text" class="form-control" id="date" required>
+                                                    <input type="text" class="form-control" id="yeAccountNo" readonly>
                                                 </div>
                                             </div>
-
                                             <div class="form-group row mb-2">
-                                                <label for="date" class="col-sm-2 col-form-label"> Account Title</label>
+                                                <label for="yeAccountTitle" class="col-sm-2 col-form-label">Account Title</label>
                                                 <div class="col-sm-5">
-                                                    <input type="text" class="form-control" id="date" required>
+                                                    <input type="text" class="form-control" id="yeAccountTitle" readonly>
                                                 </div>
                                             </div>
-
                                             <div class="form-group row mb-2">
-                                                <label for="date" class="col-sm-2 col-form-label"> Beginning Balance</label>
+                                                <label for="yeBeginningBalance" class="col-sm-2 col-form-label">Year-End Balance</label>
                                                 <div class="col-sm-5">
-                                                    <input type="text" class="form-control" id="" required>
+                                                    <input type="number" step="0.01" class="form-control" id="yeBeginningBalance" required>
                                                 </div>
                                                 <div class="col-md-5 text-end justify-content-end">
-                                                    <button class="text-white btn btn-primary px-3 py-2" type="submit"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+                                                    <button class="btn btn-secondary px-3 py-2 me-2" type="button" id="btnCancelYE">
+                                                        <i class="fa-solid fa-xmark"></i> Cancel
+                                                    </button>
+                                                    <button class="btn btn-primary px-3 py-2" type="button" id="btnSaveYE">
+                                                        <i class="fa-solid fa-floppy-disk"></i> Save
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>
+                                    </div>
                                 </form>
                             </div>
                         </div>
-                    </div>
 
                     <!-- BUDGET VARIANCE DATA TAB -->
                     <div class="tab-pane fade" id="budget-variance-data-tab-pane" role="tabpanel" aria-labelledby="budget-variance-data-tab" tabindex="0">
                         <div class="row">
                             <form action="" novalidate class="needs-validation">
                                 <div class="p-3">
-                                    <div class=" col-md-6 mb-2">
-                                        <label for="region" class="form-label mt-2 mx-2">For the Month: </label>
-                                        <select name="" class="form-select" id="" required>
-                                            <option value="" selected>Select</option>
-                                            <option value="">...</option>
-                                            <option value="">...</option>
-                                            <option value="">...</option>
-                                        </select>
-                                        <div class="invalid-feedback"> Please select month</div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-2">
+                                            <label for="budgetMonth" class="form-label mt-2 mx-2">For the Month:</label>
+                                            <input type="month" class="form-control" id="budgetMonth" required>
+                                            <div class="invalid-feedback">Please select month</div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label for="budgetFundSelect" class="form-label mt-2 mx-2">Funding:</label>
+                                            <select class="form-select" id="budgetFundSelect" required>
+                                                <option value="" selected>Select Fund</option>
+                                            </select>
+                                            <div class="invalid-feedback">Please select funding</div>
+                                        </div>
                                     </div>
 
+                                    <div class="row mb-3">
+                                        <div class="col-12">
+                                            <button class="btn btn-primary" type="button" id="btnLoadBudget">
+                                                <i class="fa-solid fa-calculator"></i> Load Budget Variance
+                                            </button>
+                                            <button class="btn btn-info" type="button" id="btnCopyBudget">
+                                                <i class="fa-solid fa-copy"></i> Copy Budget from Another Month
+                                            </button>
+                                        </div>
+                                    </div>
 
-                                    <table class="table table-hover  table-borderless " style="background-color: white;">
-                                        <thead>
-                                            <tr>
-                                                <th>
-                                                    Account No.
-                                                </th>
-                                                <th>
-                                                    Account Title
-                                                </th>
-                                                <th>
-                                                    Month
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr>
-                                                <td></td>
-                                                <td></td>
-                                                <td></td>
-                                            </tr>
-                                            <tr>
-                                                <td></td>
-                                                <td></td>
-                                                <td></td>
-                                            </tr>
-                                            <tr>
-                                                <td></td>
-                                                <td></td>
-                                                <td></td>
-                                            </tr>
-                                            <tr>
-                                                <td></td>
-                                                <td></td>
-                                                <td></td>
-                                            </tr>
-                                            <tr>
-                                                <td></td>
-                                                <td></td>
-                                                <td></td>
-                                            </tr>
-                                            <tr>
-                                                <td></td>
-                                                <td></td>
-                                                <td></td>
-                                            </tr>
-                                            <tr>
-                                                <td></td>
-                                                <td></td>
-                                                <td></td>
-                                            </tr>
-                                            <tr>
-                                                <td></td>
-                                                <td></td>
-                                                <td></td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                    <!-- <div class="row">
-                                                <div class="col-12 text-end mt-3">
-                                                    <button class="btn btn-primary" type="submit"> <i class="fa-solid fa-floppy-disk"></i> Save</button>
-                                                </div>
-                                            </div> -->
+                                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                        <table class="table table-borderless table-hover bg-white" id="budgetTable">
+                                            <thead style="position: sticky; top: 0; background-color: white; z-index: 10;">
+                                                <tr>
+                                                    <th>Account No.</th>
+                                                    <th>Account Title</th>
+                                                    <th>Category</th>
+                                                    <th class="text-end">Budget</th>
+                                                    <th class="text-end">Actual</th>
+                                                    <th class="text-end">Variance</th>
+                                                    <th class="text-end">Variance %</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="budgetTableBody">
+                                                <tr>
+                                                    <td colspan="8" class="text-center text-muted">Please select month and fund, then click Load</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
 
-                                    <div class="col-md-12 mt-4">
-                                        <p class="fw-medium fs-5 my-2">Edit Amount</p>
+                                <div class="col-md-12">
+                                    <div class="p-3">
+                                        <p class="fw-medium fs-5 my-2 mb-3">Edit Budget Amount</p>
                                         <hr style="height: 1px">
                                         <div class="form-group row mb-2">
-                                            <label for="date" class="col-sm-2 col-form-label"> Account No.</label>
+                                            <label for="budgetAccountNo" class="col-sm-2 col-form-label">Account No.</label>
                                             <div class="col-sm-5">
-                                                <input type="text" class="form-control" id="date" required>
+                                                <input type="text" class="form-control" id="budgetAccountNo" readonly>
                                             </div>
                                         </div>
-
                                         <div class="form-group row mb-2">
-                                            <label for="date" class="col-sm-2 col-form-label"> Account Title</label>
+                                            <label for="budgetAccountTitle" class="col-sm-2 col-form-label">Account Title</label>
                                             <div class="col-sm-5">
-                                                <input type="text" class="form-control" id="date" required>
+                                                <input type="text" class="form-control" id="budgetAccountTitle" readonly>
                                             </div>
                                         </div>
-
                                         <div class="form-group row mb-2">
-                                            <label for="date" class="col-sm-2 col-form-label"> Beginning Balance</label>
+                                            <label for="budgetAmount" class="col-sm-2 col-form-label">Budget Amount</label>
                                             <div class="col-sm-5">
-                                                <input type="text" class="form-control" id="" required>
+                                                <input type="number" step="0.01" class="form-control" id="budgetAmount" required>
                                             </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-7"></div>
                                             <div class="col-md-5 text-end justify-content-end">
-                                                <button class="text-white btn btn-primary px-3 py-2" type="submit"><i class="fa-solid fa-floppy-disk"></i> Save</button>
-                                                <button class="btn btn-primary px-3 py-2" type="submit"><i class="fa-solid fa-calculator"></i>
-                                                    Compute</button>
+                                                <button class="btn btn-secondary px-3 py-2 me-2" type="button" id="btnCancelBudget">
+                                                    <i class="fa-solid fa-xmark"></i> Cancel
+                                                </button>
+                                                <button class="btn btn-primary px-3 py-2" type="button" id="btnSaveBudget">
+                                                    <i class="fa-solid fa-floppy-disk"></i> Save
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -428,53 +388,49 @@
 
                     <!-- PESO DATA TAB -->
                     <div class="tab-pane fade" id="peso-data-tab-pane" role="tabpanel" aria-labelledby="peso-data-tab" tabindex="0">
-                        <div class="container mt-4">
-                            <table class="table" style="background-color: white;">
-                                <tbody>
-                                    <tr>
-                                        <td>
-                                            Number of Account Officers - AKP
-                                        </td>
-                                        <td>0</td>
-
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            Number of Account Officers - ILP
-                                        </td>
-                                        <td>0</td>
-
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            Inflation Rate
-                                        </td>
-                                        <td>0</td>
-
-                                    </tr>
-                                    <tr>
-                                        <td>GNP Capital</td>
-                                        <td>0</td>
-
-                                    </tr>
-                                </tbody>
-                            </table>
-                            <div>
-                                <div class="row mb-4">
-                                    <hr style="height:1px">
-                                    <div class="col-md-6">
-                                        <label for="" class="form-label">Item</label>
-                                        <input type="text" class="form-control">
+                        <div class="row">
+                            <form action="" novalidate class="needs-validation">
+                                <div class="p-3">
+                                    <h5 class="mb-3">PESO Data Configuration</h5>
+                                    <p class="text-muted mb-3">Configure key performance indicators and economic metrics</p>
+                                    
+                                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                        <table class="table table-borderless table-hover bg-white" id="pesoTable">
+                                            <thead style="position: sticky; top: 0; background-color: white; z-index: 10;">
+                                                <tr>
+                                                    <th style="width: 60%;">Item</th>
+                                                    <th style="width: 30%;">Value</th>
+                                                    <th style="width: 10%;">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="pesoTableBody">
+                                                <tr>
+                                                    <td colspan="3" class="text-center text-muted">Loading...</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
                                     </div>
-                                    <div class="col-md-6">
-                                        <label for="" class="form-label">Ammount</label>
-                                        <input type="text" class="form-control" name="" id="">
-                                    </div>
-                                    <div class="col-md-5 mt-2">
-                                        <button class="btn btn-primary" type="submit"> <i class="fa-solid fa-floppy-disk"></i> Save</button>
+                                    
+                                    <hr class="my-3">
+                                    
+                                    <h6 class="mb-3">Add New Item</h6>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-md-4">
+                                            <label for="pesoItem" class="form-label">Item Name</label>
+                                            <input type="text" class="form-control" id="pesoItem" placeholder="e.g., Exchange Rate">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label for="pesoAmount" class="form-label">Value</label>
+                                            <input type="number" step="0.01" class="form-control" id="pesoAmount" placeholder="0.00">
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button class="btn btn-primary w-100" type="button" id="btnSavePESO">
+                                                <i class="fa-solid fa-plus"></i> Add
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            </form>
                         </div>
                     </div>
                 </div>

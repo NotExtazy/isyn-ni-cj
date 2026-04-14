@@ -30,15 +30,19 @@ $(document).ready(function () {
             data: { action: 'LoadPage' },
             dataType: 'json',
             success: function (res) {
+                console.log('LoadPage response:', res);
                 if (res.STATUS === 'SUCCESS') {
                     currentFunds = res.FUNDS || [];
                     currentYear = res.CURRENT_YEAR;
                     populateFundDropdowns();
                     loadPESOData(); // Load PESO data on page load
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: res.MESSAGE || 'Failed to load page data' });
                 }
             },
-            error: function () {
-                Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load page data' });
+            error: function (xhr, status, error) {
+                console.error('LoadPage error:', xhr.responseText);
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load page data: ' + error });
             }
         });
     }
@@ -49,6 +53,8 @@ $(document).ready(function () {
             opts += '<option value="' + f.fundname + '">' + f.fundname + '</option>';
         });
         $('#bbFundSelect, #slFundSelect, #yeFundSelect, #budgetFundSelect').html(opts);
+        console.log('Fund dropdowns populated with', currentFunds.length, 'funds');
+        console.log('Budget dropdown options:', $('#budgetFundSelect option').length);
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -317,6 +323,16 @@ $(document).ready(function () {
             return;
         }
 
+        // Show loading
+        Swal.fire({
+            title: 'Calculating...',
+            text: 'Please wait while we calculate year-end balances',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
         loadYearEndBalances(fund, yearendDate);
     });
 
@@ -331,11 +347,16 @@ $(document).ready(function () {
             },
             dataType: 'json',
             success: function (res) {
+                Swal.close();
                 if (res.STATUS === 'SUCCESS') {
                     displayYearEndBalances(res.ACCOUNTS);
                 } else {
                     Swal.fire({ icon: 'error', title: 'Error', text: res.MESSAGE });
                 }
+            },
+            error: function() {
+                Swal.close();
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load year-end balances' });
             }
         });
     }
@@ -345,16 +366,59 @@ $(document).ready(function () {
         if (accounts && accounts.length > 0) {
             $.each(accounts, function (i, acc) {
                 let locked = acc.is_locked == 1;
-                html += '<tr' + (locked ? ' class="table-secondary"' : '') + '>';
+                let rowClass = locked ? 'table-secondary' : 'ye-row';
+                let statusBadge = locked ? '<span class="badge bg-danger">Locked</span>' : '<span class="badge bg-success">Unlocked</span>';
+                
+                html += '<tr class="' + rowClass + '" style="cursor: pointer;" ';
+                html += 'data-acctno="' + acc.acctno + '" ';
+                html += 'data-accttitle="' + acc.accttitle + '" ';
+                html += 'data-balance="' + acc.final_balance + '" ';
+                html += 'data-locked="' + locked + '">';
                 html += '<td>' + acc.acctno + '</td>';
                 html += '<td>' + acc.accttitle + '</td>';
-                html += '<td><input type="number" class="form-control form-control-sm ye-balance" data-acctno="' + acc.acctno + '" data-accttitle="' + acc.accttitle + '" value="' + acc.yearend_balance + '" step="0.01"' + (locked ? ' disabled' : '') + '></td>';
+                html += '<td>' + acc.category + '</td>';
+                html += '<td class="text-end">' + parseFloat(acc.beginning_balance).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
+                html += '<td class="text-end">' + parseFloat(acc.total_debits).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
+                html += '<td class="text-end">' + parseFloat(acc.total_credits).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
+                html += '<td class="text-end fw-bold">' + parseFloat(acc.final_balance).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
+                html += '<td>' + statusBadge + '</td>';
                 html += '</tr>';
             });
         } else {
-            html = '<tr><td colspan="3" class="text-center text-muted">No accounts found</td></tr>';
+            html = '<tr><td colspan="8" class="text-center text-muted">No accounts found</td></tr>';
         }
         $('#yeTableBody').html(html);
+        
+        // Add click event to unlocked rows
+        $('.ye-row').on('click', function() {
+            let acctno = $(this).data('acctno');
+            let accttitle = $(this).data('accttitle');
+            let balance = $(this).data('balance');
+            let locked = $(this).data('locked');
+            
+            if (locked) {
+                Swal.fire({ 
+                    icon: 'warning', 
+                    title: 'Locked', 
+                    text: 'This year-end period is locked. Please unlock before editing.' 
+                });
+                return;
+            }
+            
+            // Populate edit form
+            $('#yeAccountNo').val(acctno);
+            $('#yeAccountTitle').val(accttitle);
+            $('#yeBeginningBalance').val(balance);
+            
+            // Highlight selected row
+            $('.ye-row').removeClass('table-active');
+            $(this).addClass('table-active');
+            
+            // Scroll to edit form
+            $('html, body').animate({
+                scrollTop: $('#yeAccountNo').offset().top - 100
+            }, 500);
+        });
     }
 
     $('#btnSaveYE').on('click', function () {
@@ -386,9 +450,95 @@ $(document).ready(function () {
                     Swal.fire({ icon: 'success', title: 'Saved', text: res.MESSAGE });
                     loadYearEndBalances(fund, yearendDate);
                     $('#yeAccountNo, #yeAccountTitle, #yeBeginningBalance').val('');
+                    $('.ye-row').removeClass('table-active');
                 } else {
                     Swal.fire({ icon: 'error', title: 'Error', text: res.MESSAGE });
                 }
+            }
+        });
+    });
+
+    $('#btnCancelYE').on('click', function () {
+        $('#yeAccountNo, #yeAccountTitle, #yeBeginningBalance').val('');
+        $('.ye-row').removeClass('table-active');
+    });
+
+    $('#btnLockYE').on('click', function () {
+        let fund = $('#yeFundSelect').val();
+        let yearendDate = $('#yeMonth').val();
+
+        if (!fund || !yearendDate) {
+            Swal.fire({ icon: 'warning', title: 'Missing Data', text: 'Please select fund and date' });
+            return;
+        }
+
+        Swal.fire({
+            title: 'Lock Year-End?',
+            text: 'This will prevent any changes to year-end balances for this period.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, lock it!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: '/iSynApp-main/generalledger/dataconfiguration',
+                    type: 'POST',
+                    data: {
+                        action: 'LockYearEnd',
+                        fund: fund,
+                        yearendDate: yearendDate
+                    },
+                    dataType: 'json',
+                    success: function (res) {
+                        if (res.STATUS === 'SUCCESS') {
+                            Swal.fire({ icon: 'success', title: 'Locked', text: res.MESSAGE });
+                            loadYearEndBalances(fund, yearendDate);
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Error', text: res.MESSAGE });
+                        }
+                    }
+                });
+            }
+        });
+    });
+
+    $('#btnUnlockYE').on('click', function () {
+        let fund = $('#yeFundSelect').val();
+        let yearendDate = $('#yeMonth').val();
+
+        if (!fund || !yearendDate) {
+            Swal.fire({ icon: 'warning', title: 'Missing Data', text: 'Please select fund and date' });
+            return;
+        }
+
+        Swal.fire({
+            title: 'Unlock Year-End?',
+            text: 'This will allow changes to year-end balances for this period.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, unlock it!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: '/iSynApp-main/generalledger/dataconfiguration',
+                    type: 'POST',
+                    data: {
+                        action: 'UnlockYearEnd',
+                        fund: fund,
+                        yearendDate: yearendDate
+                    },
+                    dataType: 'json',
+                    success: function (res) {
+                        if (res.STATUS === 'SUCCESS') {
+                            Swal.fire({ icon: 'success', title: 'Unlocked', text: res.MESSAGE });
+                            loadYearEndBalances(fund, yearendDate);
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Error', text: res.MESSAGE });
+                        }
+                    }
+                });
             }
         });
     });
@@ -409,21 +559,33 @@ $(document).ready(function () {
     });
 
     function loadBudgetData(fund, budgetMonth) {
+        Swal.fire({
+            title: 'Loading...',
+            text: 'Calculating budget variance',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
         $.ajax({
             url: '/iSynApp-main/generalledger/dataconfiguration',
             type: 'POST',
             data: {
                 action: 'GetBudgetData',
                 fund: fund,
-                budgetMonth: budgetMonth
+                budgetMonth: budgetMonth + '-01'
             },
             dataType: 'json',
             success: function (res) {
+                Swal.close();
                 if (res.STATUS === 'SUCCESS') {
                     displayBudgetData(res.ACCOUNTS);
                 } else {
                     Swal.fire({ icon: 'error', title: 'Error', text: res.MESSAGE });
                 }
+            },
+            error: function() {
+                Swal.close();
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load budget data' });
             }
         });
     }
@@ -432,18 +594,65 @@ $(document).ready(function () {
         let html = '';
         if (accounts && accounts.length > 0) {
             $.each(accounts, function (i, acc) {
-                html += '<tr>';
+                let variance = parseFloat(acc.variance);
+                let variancePercent = parseFloat(acc.variance_percent);
+                let statusClass = '';
+                let statusBadge = '';
+                
+                // Determine row color and badge based on status
+                if (acc.status === 'Over Budget') {
+                    statusClass = 'table-danger';
+                    statusBadge = '<span class="badge bg-danger">Over Budget</span>';
+                } else if (acc.status === 'Under Budget') {
+                    statusClass = 'table-success';
+                    statusBadge = '<span class="badge bg-success">Under Budget</span>';
+                } else if (acc.status === 'On Track') {
+                    statusClass = '';
+                    statusBadge = '<span class="badge bg-info">On Track</span>';
+                } else {
+                    statusClass = 'table-secondary';
+                    statusBadge = '<span class="badge bg-secondary">No Budget</span>';
+                }
+                
+                html += '<tr class="budget-row ' + statusClass + '" style="cursor: pointer;" ';
+                html += 'data-acctno="' + acc.acctno + '" ';
+                html += 'data-accttitle="' + acc.accttitle + '" ';
+                html += 'data-budget="' + acc.budget_amount + '">';
                 html += '<td>' + acc.acctno + '</td>';
                 html += '<td>' + acc.accttitle + '</td>';
-                html += '<td><input type="number" class="form-control form-control-sm budget-amount" data-acctno="' + acc.acctno + '" data-accttitle="' + acc.accttitle + '" value="' + acc.budget_amount + '" step="0.01"></td>';
-                html += '<td>' + parseFloat(acc.actual_amount).toFixed(2) + '</td>';
-                html += '<td>' + parseFloat(acc.variance).toFixed(2) + '</td>';
+                html += '<td>' + acc.category + '</td>';
+                html += '<td class="text-end">' + parseFloat(acc.budget_amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
+                html += '<td class="text-end">' + parseFloat(acc.actual_amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
+                html += '<td class="text-end ' + (variance > 0 ? 'text-danger' : variance < 0 ? 'text-success' : '') + '">' + variance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
+                html += '<td class="text-end ' + (variancePercent > 5 ? 'text-danger' : variancePercent < -5 ? 'text-success' : '') + '">' + variancePercent.toFixed(2) + '%</td>';
+                html += '<td>' + statusBadge + '</td>';
                 html += '</tr>';
             });
         } else {
-            html = '<tr><td colspan="5" class="text-center text-muted">No accounts found</td></tr>';
+            html = '<tr><td colspan="8" class="text-center text-muted">No accounts found</td></tr>';
         }
         $('#budgetTableBody').html(html);
+        
+        // Add click event to rows
+        $('.budget-row').on('click', function() {
+            let acctno = $(this).data('acctno');
+            let accttitle = $(this).data('accttitle');
+            let budget = $(this).data('budget');
+            
+            // Populate edit form
+            $('#budgetAccountNo').val(acctno);
+            $('#budgetAccountTitle').val(accttitle);
+            $('#budgetAmount').val(budget);
+            
+            // Highlight selected row
+            $('.budget-row').removeClass('table-active');
+            $(this).addClass('table-active');
+            
+            // Scroll to edit form
+            $('html, body').animate({
+                scrollTop: $('#budgetAccountNo').offset().top - 100
+            }, 500);
+        });
     }
 
     $('#btnSaveBudget').on('click', function () {
@@ -462,26 +671,79 @@ $(document).ready(function () {
             url: '/iSynApp-main/generalledger/dataconfiguration',
             type: 'POST',
             data: {
-                action: 'SaveBudgetData',
+                action: 'SaveBudgetAmount',
                 fund: fund,
                 acctno: acctno,
                 accttitle: accttitle,
                 budgetAmount: budgetAmount,
-                budgetMonth: budgetMonth
+                budgetMonth: budgetMonth + '-01'
             },
             dataType: 'json',
             success: function (res) {
                 if (res.STATUS === 'SUCCESS') {
-                    Swal.fire({ 
-                        icon: 'success', 
-                        title: 'Saved', 
-                        html: res.MESSAGE + '<br>Actual: ' + parseFloat(res.ACTUAL_AMOUNT).toFixed(2) + '<br>Variance: ' + parseFloat(res.VARIANCE).toFixed(2)
-                    });
+                    Swal.fire({ icon: 'success', title: 'Saved', text: res.MESSAGE });
                     loadBudgetData(fund, budgetMonth);
                     $('#budgetAccountNo, #budgetAccountTitle, #budgetAmount').val('');
+                    $('.budget-row').removeClass('table-active');
                 } else {
                     Swal.fire({ icon: 'error', title: 'Error', text: res.MESSAGE });
                 }
+            }
+        });
+    });
+
+    $('#btnCancelBudget').on('click', function () {
+        $('#budgetAccountNo, #budgetAccountTitle, #budgetAmount').val('');
+        $('.budget-row').removeClass('table-active');
+    });
+
+    $('#btnCopyBudget').on('click', function () {
+        let fund = $('#budgetFundSelect').val();
+        let targetMonth = $('#budgetMonth').val();
+
+        if (!fund || !targetMonth) {
+            Swal.fire({ icon: 'warning', title: 'Missing Data', text: 'Please select fund and target month first' });
+            return;
+        }
+
+        Swal.fire({
+            title: 'Copy Budget',
+            html: '<label for="sourceMonth" class="form-label">Copy from Month:</label>' +
+                  '<input type="month" class="form-control" id="sourceMonth">',
+            showCancelButton: true,
+            confirmButtonText: 'Copy',
+            cancelButtonText: 'Cancel',
+            preConfirm: () => {
+                const sourceMonth = document.getElementById('sourceMonth').value;
+                if (!sourceMonth) {
+                    Swal.showValidationMessage('Please select source month');
+                    return false;
+                }
+                return sourceMonth;
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                let sourceMonth = result.value;
+                
+                $.ajax({
+                    url: '/iSynApp-main/generalledger/dataconfiguration',
+                    type: 'POST',
+                    data: {
+                        action: 'CopyBudgetToMonth',
+                        fund: fund,
+                        sourceMonth: sourceMonth + '-01',
+                        targetMonth: targetMonth + '-01'
+                    },
+                    dataType: 'json',
+                    success: function (res) {
+                        if (res.STATUS === 'SUCCESS') {
+                            Swal.fire({ icon: 'success', title: 'Copied', text: res.MESSAGE });
+                            loadBudgetData(fund, targetMonth);
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Error', text: res.MESSAGE });
+                        }
+                    }
+                });
             }
         });
     });
@@ -498,7 +760,12 @@ $(document).ready(function () {
             success: function (res) {
                 if (res.STATUS === 'SUCCESS') {
                     displayPESOData(res.PESO_DATA);
+                } else {
+                    $('#pesoTableBody').html('<tr><td colspan="3" class="text-center text-danger">Failed to load data</td></tr>');
                 }
+            },
+            error: function() {
+                $('#pesoTableBody').html('<tr><td colspan="3" class="text-center text-danger">Error loading data</td></tr>');
             }
         });
     }
@@ -509,19 +776,31 @@ $(document).ready(function () {
             $.each(pesoData, function (i, item) {
                 html += '<tr>';
                 html += '<td>' + item.item_name + '</td>';
-                html += '<td><input type="number" class="form-control form-control-sm peso-value" data-item="' + item.item_name + '" value="' + item.item_value + '" step="0.01"></td>';
+                html += '<td>';
+                html += '<input type="number" class="form-control form-control-sm peso-value" ';
+                html += 'data-item="' + item.item_name + '" ';
+                html += 'value="' + parseFloat(item.item_value).toFixed(2) + '" ';
+                html += 'step="0.01" style="max-width: 200px;">';
+                html += '</td>';
+                html += '<td>';
+                html += '<button type="button" class="btn btn-sm btn-danger delete-peso" data-item="' + item.item_name + '">';
+                html += '<i class="fa-solid fa-trash"></i>';
+                html += '</button>';
+                html += '</td>';
                 html += '</tr>';
             });
+        } else {
+            html = '<tr><td colspan="3" class="text-center text-muted">No PESO data found. Add items below.</td></tr>';
         }
         $('#pesoTableBody').html(html);
     }
 
     $('#btnSavePESO').on('click', function () {
-        let itemName = $('#pesoItem').val();
+        let itemName = $('#pesoItem').val().trim();
         let itemValue = $('#pesoAmount').val();
 
         if (!itemName || !itemValue) {
-            Swal.fire({ icon: 'warning', title: 'Missing Data', text: 'Please fill in all fields' });
+            Swal.fire({ icon: 'warning', title: 'Missing Data', text: 'Please fill in both item name and value' });
             return;
         }
 
@@ -546,10 +825,11 @@ $(document).ready(function () {
         });
     });
 
-    // Quick save from table
+    // Quick save from table - update value on change
     $(document).on('change', '.peso-value', function () {
         let itemName = $(this).data('item');
         let itemValue = $(this).val();
+        let $input = $(this);
 
         $.ajax({
             url: '/iSynApp-main/generalledger/dataconfiguration',
@@ -562,10 +842,49 @@ $(document).ready(function () {
             dataType: 'json',
             success: function (res) {
                 if (res.STATUS === 'SUCCESS') {
-                    $(this).addClass('border-success');
-                    setTimeout(() => $(this).removeClass('border-success'), 1000);
+                    $input.addClass('border-success');
+                    setTimeout(() => $input.removeClass('border-success'), 1000);
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: res.MESSAGE });
                 }
-            }.bind(this)
+            }
+        });
+    });
+
+    // Delete PESO item
+    $(document).on('click', '.delete-peso', function (e) {
+        e.preventDefault(); // Prevent form submission
+        e.stopPropagation(); // Stop event bubbling
+        
+        let itemName = $(this).data('item');
+
+        Swal.fire({
+            title: 'Delete Item?',
+            text: 'Are you sure you want to delete "' + itemName + '"?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, delete it',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: '/iSynApp-main/generalledger/dataconfiguration',
+                    type: 'POST',
+                    data: {
+                        action: 'DeletePESOData',
+                        itemName: itemName
+                    },
+                    dataType: 'json',
+                    success: function (res) {
+                        if (res.STATUS === 'SUCCESS') {
+                            Swal.fire({ icon: 'success', title: 'Deleted', text: res.MESSAGE });
+                            loadPESOData();
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Error', text: res.MESSAGE });
+                        }
+                    }
+                });
+            }
         });
     });
 });

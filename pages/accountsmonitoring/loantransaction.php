@@ -359,6 +359,10 @@
                                     <select class="form-select" id="clientSelect" name="clientSelect">
                                         <option value="" disabled selected>Loading clients...</option>
                                     </select>
+                                    <small class="text-muted">
+                                        <span class="badge bg-danger" style="font-size: 0.7rem;"><i class="fas fa-exclamation-circle"></i> Active</span> Has pending loans | 
+                                        <span class="badge bg-success" style="font-size: 0.7rem;"><i class="fas fa-check-circle"></i> Paid</span> All loans paid
+                                    </small>
                                 </div>
                                 <div class="col-md-4 d-flex align-items-end">
                                     <button class="btn btn-success me-2" id="addNew" type="button" disabled>
@@ -388,6 +392,7 @@
                                             <th>Client Name</th>
                                             <th>Program</th>
                                             <th>Product</th>
+                                            <th>Product Details</th>
                                             <th>Date Released</th>
                                             <th>Term</th>
                                             <th>Total Amount Due</th>
@@ -399,7 +404,7 @@
                                     </thead>
                                     <tbody id="loanTableBody">
                                         <tr>
-                                            <td colspan="11" class="text-center text-muted">Please select a client to view loans</td>
+                                            <td colspan="12" class="text-center text-muted">Please select a client to view loans</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -469,7 +474,17 @@
                                 <form id="newLoanForm">
                                     <div class="mb-3">
                                         <label class="form-label">Client Name</label>
-                                        <input type="text" class="form-control" id="newLoanClientName" readonly>
+                                        <input type="text" class="form-control" id="newLoanClientNameDisplay" readonly>
+                                        <input type="hidden" id="newLoanClientId" name="clientId" value="">
+                                        <small class="text-muted">The client who will receive this loan</small>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Loaned Product</label>
+                                        <select class="form-select" id="newLoanProductDropdown" required>
+                                            <option value="">Select a loaned product...</option>
+                                        </select>
+                                        <small class="text-muted">Select the product that was loaned to this client</small>
                                     </div>
                                     
                                     <div class="row">
@@ -520,7 +535,8 @@
                                     
                                     <div class="mb-3">
                                         <label class="form-label">Loan Amount</label>
-                                        <input type="number" class="form-control" id="newLoanAmount" name="add_amount" step="0.01" required oninput="computeAmortization(); computeAddInterest(); computeAddPrincipal(this.value);">
+                                        <input type="number" class="form-control" id="newLoanAmount" name="add_amount" step="0.01" required readonly oninput="computeAmortization(); computeAddInterest(); computeAddPrincipal(this.value);">
+                                        <small class="text-muted">Auto-filled from product price</small>
                                     </div>
                                     
                                     <div class="mb-3">
@@ -533,6 +549,8 @@
                                     <!-- Hidden fields for computation -->
                                     <input type="hidden" id="principalAddValue" name="principalAddValue" value="0.00">
                                     <input type="hidden" id="add_downpaymentAmount" name="add_downpaymentAmount" value="0">
+                                    <input type="hidden" id="newLoanProductPrice" value="0">
+                                    <input type="hidden" id="newLoanInventorySI" value="">
                                 </form>
                             </div>
                             
@@ -616,6 +634,7 @@
                     <div class="modal-body">
                         <input type="hidden" id="renewalClientId" name="clientId" value="">
                         <input type="hidden" id="renewalLoanId" name="loanId" value="">
+                        <input type="hidden" id="renewalInventorySI" value="">
                         
                         <!-- Client Info Display -->
                         <div class="alert alert-info mb-4">
@@ -629,6 +648,15 @@
                                     <div class="mb-3">
                                         <label class="form-label">Client Name</label>
                                         <input type="text" class="form-control" id="renewalClientNameField" readonly>
+                                        <small class="text-muted">The client who will receive this renewal loan</small>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Loaned Product</label>
+                                        <select class="form-select" id="renewalProductDropdown" required>
+                                            <option value="">Select a loaned product...</option>
+                                        </select>
+                                        <small class="text-muted">Select the product that was loaned to this client</small>
                                     </div>
                                     
                                     <div class="row">
@@ -679,7 +707,8 @@
                                     
                                     <div class="mb-3">
                                         <label class="form-label">Loan Amount</label>
-                                        <input type="number" class="form-control" id="renewalAmount" name="amount" step="0.01" required oninput="calculateRenewalSummary();">
+                                        <input type="number" class="form-control" id="renewalAmount" name="amount" step="0.01" required readonly oninput="calculateRenewalSummary();">
+                                        <small class="text-muted">Auto-filled from product price</small>
                                     </div>
                                     
                                     <div class="mb-3">
@@ -695,6 +724,7 @@
                                     <input type="hidden" id="renewalProgram" name="program" value="Microfinance">
                                     <input type="hidden" id="renewalAvailment" name="availment" value="1">
                                     <input type="hidden" id="renewalDownPaymentAmount" name="downPaymentAmount" value="0">
+                                    <input type="hidden" id="renewalProductPrice" value="0">
                                 </form>
                             </div>
                             
@@ -831,9 +861,9 @@
                         console.log('Adding fallback clients...');
                         var select = $('#clientSelect');
                         select.empty().append('<option value="">SELECT CLIENT</option>');
-                        select.append('<option value="1">Test Client 1</option>');
-                        select.append('<option value="2">Test Client 2</option>');
-                        select.append('<option value="3">Test Client 3</option>');
+                        select.append('<option value="1">John Doe</option>');
+                        select.append('<option value="2">Jane Smith</option>');
+                        select.append('<option value="3">Bob Johnson</option>');
                     }
                 }, 3000);
                 
@@ -897,7 +927,20 @@
                             var select = $('#clientSelect');
                             select.empty().append('<option value="">SELECT CLIENT</option>');
                             data.clients.forEach(function(client) {
-                                select.append('<option value="' + client.ClientNo + '">' + client.ClientName + '</option>');
+                                // Add visual indicator for clients with pending loans
+                                var displayName = client.ClientName;
+                                var indicator = '';
+                                var dataAttrs = '';
+                                
+                                if (client.HasPendingLoans) {
+                                    indicator = ' ⚠'; // Warning symbol for pending loans
+                                    dataAttrs = ' data-has-pending="true" data-active-loans="' + client.ActiveLoans + '" data-balance="' + client.TotalBalance + '"';
+                                } else if (client.TotalLoans > 0) {
+                                    indicator = ' ✓'; // Checkmark for clients with fully paid loans
+                                    dataAttrs = ' data-has-pending="false" data-total-loans="' + client.TotalLoans + '"';
+                                }
+                                
+                                select.append('<option value="' + client.ClientNo + '"' + dataAttrs + '>' + displayName + indicator + '</option>');
                             });
                             console.log('Loaded ' + data.clients.length + ' clients');
                             
@@ -910,7 +953,59 @@
                                 dropdownAutoWidth: false,
                                 closeOnSelect: true,
                                 // Ensure proper scrolling behavior
-                                dropdownCssClass: 'select2-dropdown-scroll'
+                                dropdownCssClass: 'select2-dropdown-scroll',
+                                // Custom template to show loan status with colors
+                                templateResult: function(client) {
+                                    if (!client.id) {
+                                        return client.text;
+                                    }
+                                    
+                                    var $client = $(client.element);
+                                    var hasPending = $client.data('has-pending');
+                                    var activeLoans = $client.data('active-loans');
+                                    var balance = $client.data('balance');
+                                    var totalLoans = $client.data('total-loans');
+                                    
+                                    var $result = $('<div style="display: flex; align-items: center; justify-content: space-between;"></div>');
+                                    var $name = $('<span></span>').text(client.text.replace(' ⚠', '').replace(' ✓', ''));
+                                    $result.append($name);
+                                    
+                                    // Add badge for loan status
+                                    if (hasPending === true) {
+                                        var $badge = $('<span class="badge" style="background-color: #dc3545; color: white; font-size: 0.7rem; padding: 2px 6px; margin-left: 8px;"><i class="fas fa-exclamation-circle"></i> ' + activeLoans + ' Active</span>');
+                                        $badge.attr('title', activeLoans + ' active loan(s), Balance: ₱' + (balance ? balance.toLocaleString('en-US', {minimumFractionDigits: 2}) : '0.00'));
+                                        $result.append($badge);
+                                    } else if (totalLoans > 0) {
+                                        var $badge = $('<span class="badge" style="background-color: #28a745; color: white; font-size: 0.7rem; padding: 2px 6px; margin-left: 8px;"><i class="fas fa-check-circle"></i> Paid</span>');
+                                        $badge.attr('title', 'All loans paid');
+                                        $result.append($badge);
+                                    }
+                                    
+                                    return $result;
+                                },
+                                templateSelection: function(client) {
+                                    if (!client.id) {
+                                        return client.text;
+                                    }
+                                    
+                                    var $client = $(client.element);
+                                    var hasPending = $client.data('has-pending');
+                                    var activeLoans = $client.data('active-loans');
+                                    var totalLoans = $client.data('total-loans');
+                                    
+                                    var $result = $('<span></span>');
+                                    var cleanText = client.text.replace(' ⚠', '').replace(' ✓', '');
+                                    $result.text(cleanText);
+                                    
+                                    // Add small badge in selection
+                                    if (hasPending === true) {
+                                        $result.append(' <span class="badge bg-danger" style="font-size: 0.65rem; vertical-align: middle;"><i class="fas fa-exclamation-circle"></i> ' + activeLoans + '</span>');
+                                    } else if (totalLoans > 0) {
+                                        $result.append(' <span class="badge bg-success" style="font-size: 0.65rem; vertical-align: middle;"><i class="fas fa-check"></i></span>');
+                                    }
+                                    
+                                    return $result;
+                                }
                             });
                             
                             // Re-bind change event for Select2
@@ -948,7 +1043,7 @@
                     error: function(xhr, status, error) {
                         console.error('Error loading loans:', error);
                         console.error('Response:', xhr.responseText);
-                        $('#loanTableBody').html('<tr><td colspan="10" class="text-center text-danger">Error loading loans</td></tr>');
+                        $('#loanTableBody').html('<tr><td colspan="12" class="text-center text-danger">Error loading loans</td></tr>');
                     }
                 });
             }
@@ -1035,13 +1130,16 @@
             }
             
             function openNewLoanModal(clientId, clientName) {
-                console.log('Opening new loan modal for eligible client:', clientName);
+                console.log('Opening new loan modal for client:', clientName, 'ID:', clientId);
                 
-                // Set client data
-                $('#newLoanClientName').val(clientName);
+                // Set client information
                 $('#newLoanClientId').val(clientId);
+                $('#newLoanClientNameDisplay').val(clientName);
                 
-                // Load dropdown data from database
+                // Load loaned products for this client
+                loadLoanedProductsForClient(clientId);
+                
+                // Load other dropdown data from database
                 loadFormDropdowns();
                 
                 // Use Bootstrap 5 modal API
@@ -1054,6 +1152,81 @@
                     // Fallback to jQuery
                     $('#newLoanModal').modal('show');
                 }
+            }
+            
+            function loadLoanedProductsForClient(clientNo) {
+                console.log('Loading loaned products for client:', clientNo);
+                
+                $.ajax({
+                    url: '/iSynApp-main/routes/accountsmonitoring/loantransaction.route.php?action=getLoanedProductsForClient&client_no=' + clientNo,
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(response) {
+                        console.log('Loaned products response:', response);
+                        
+                        if (response && response.success && response.products) {
+                            var select = $('#newLoanProductDropdown');
+                            select.empty().append('<option value="">Select a loaned product...</option>');
+                            
+                            if (response.products.length === 0) {
+                                select.append('<option value="" disabled>No available loaned products in inventory</option>');
+                                console.warn('No loaned products found in inventory');
+                            } else {
+                                // Show info message if products exist but none for this specific client
+                                if (response.matchedCount === 0 && response.products.length > 0) {
+                                    select.append('<option value="" disabled>--- Available loaned products (not specifically for this client) ---</option>');
+                                } else if (response.matchedCount > 0) {
+                                    select.append('<option value="" disabled>--- Products for ' + response.clientName + ' ---</option>');
+                                }
+                                
+                                response.products.forEach(function(product) {
+                                    select.append('<option value="' + product.SI + '" data-price="' + product.Price + '" data-product-name="' + product.ProductName + '" data-is-for-client="' + product.IsForThisClient + '">' + product.DisplayName + '</option>');
+                                });
+                                
+                                console.log('Loaded ' + response.products.length + ' loaned products (' + response.matchedCount + ' matched to client)');
+                                console.log('Debug info:', response.debug);
+                            }
+                            
+                            // Initialize Select2 for searchable dropdown
+                            select.select2({
+                                placeholder: 'Type to search for a product...',
+                                allowClear: true,
+                                width: '100%',
+                                theme: 'bootstrap-5',
+                                dropdownParent: $('#newLoanModal')
+                            });
+                            
+                            // Handle product selection
+                            select.on('select2:select', function(e) {
+                                var selectedOption = $(this).find('option:selected');
+                                var si = selectedOption.val();
+                                var price = selectedOption.data('price');
+                                var productName = selectedOption.data('product-name');
+                                
+                                console.log('Product selected - SI:', si, 'Price:', price, 'Name:', productName);
+                                
+                                // Store the inventory SI
+                                $('#newLoanInventorySI').val(si);
+                                
+                                // Set loan amount from product price
+                                $('#newLoanAmount').val(price);
+                                $('#newLoanProductPrice').val(price);
+                                
+                                // Trigger computation with the price
+                                computeAddPrincipal(price);
+                            });
+                            
+                        } else {
+                            console.error('Failed to load loaned products:', response);
+                            alert('Error loading loaned products: ' + (response.message || 'Unknown error'));
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error loading loaned products:', error);
+                        console.error('Response:', xhr.responseText);
+                        alert('Error loading loaned products: ' + error);
+                    }
+                });
             }
             
             function showEligibilityError(clientName, response) {
@@ -1187,7 +1360,7 @@
                 // Get form data
                 var formData = {
                     action: 'saveLoanApplication',
-                    add_userId: $('#newLoanClientId').val(),
+                    add_userId: $('#newLoanClientId').val(), // Use selected client from dropdown
                     add_loanType: 'NEW',
                     add_program: 'ISYN',
                     add_product: $('#newLoanProduct').val(),
@@ -1196,10 +1369,15 @@
                     add_amount: $('#newLoanAmount').val(),
                     add_poFco: $('#newLoanStaff').val(),
                     add_availment: '1',
-                    add_interest: $('#interestAddValue').val().replace(/,/g, '') // Add calculated interest
+                    add_interest: $('#interestAddValue').val().replace(/,/g, ''), // Add calculated interest
+                    inventory_si: $('#newLoanInventorySI').val() // Add inventory SI for linking
                 };
                 
                 // Basic validation
+                if (!formData.add_userId) {
+                    alert('Please select a client');
+                    return;
+                }
                 if (!formData.add_product) {
                     alert('Please select a product');
                     return;
@@ -1269,8 +1447,17 @@
                 
                 // Reset form fields
                 $('#newLoanForm')[0].reset();
-                $('#newLoanClientName').val('');
+                
+                // Destroy Select2 and reset loaned products dropdown
+                if ($('#newLoanProductDropdown').hasClass('select2-hidden-accessible')) {
+                    $('#newLoanProductDropdown').select2('destroy');
+                }
+                $('#newLoanProductDropdown').empty().append('<option value="">Select a loaned product...</option>');
+                
                 $('#newLoanClientId').val('');
+                $('#newLoanClientNameDisplay').val('');
+                $('#newLoanProductPrice').val('0');
+                $('#newLoanInventorySI').val('');
                 
                 // Reset dropdowns to loading state
                 $('#newLoanProduct').html('<option value="">Loading products...</option>');
@@ -1497,7 +1684,7 @@
 
             function openRenewalModal(loanId, clientId, clientName) {
                 console.log('=== OPENING RENEWAL MODAL ===');
-                console.log('Opening renewal modal for loan:', loanId, 'client:', clientName);
+                console.log('Opening renewal modal for loan:', loanId, 'client:', clientName, 'ID:', clientId);
                 console.log('This should ONLY happen if client has NO outstanding loans');
                 
                 // Get client name from multiple sources with fallbacks
@@ -1536,7 +1723,10 @@
                     renewalClientNameField.value = clientName;
                 }
                 
-                // Load form dropdowns first
+                // Load loaned products for this client
+                loadLoanedProductsForRenewal(clientId);
+                
+                // Load form dropdowns
                 loadRenewalFormDropdowns();
                 
                 // Reset form (but preserve client name)
@@ -1553,6 +1743,78 @@
                 // Show modal with simple method to avoid freezing
                 $('#renewalLoanModal').modal('show');
                 console.log('Renewal modal opened successfully with client:', clientName);
+            }
+            
+            function loadLoanedProductsForRenewal(clientNo) {
+                console.log('Loading loaned products for renewal, client:', clientNo);
+                
+                $.ajax({
+                    url: '/iSynApp-main/routes/accountsmonitoring/loantransaction.route.php?action=getLoanedProductsForClient&client_no=' + clientNo,
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(response) {
+                        console.log('Loaned products for renewal response:', response);
+                        
+                        if (response && response.success && response.products) {
+                            var select = $('#renewalProductDropdown');
+                            select.empty().append('<option value="">Select a loaned product...</option>');
+                            
+                            if (response.products.length === 0) {
+                                select.append('<option value="" disabled>No available loaned products in inventory</option>');
+                                console.warn('No loaned products found for renewal');
+                            } else {
+                                // Show info message if products exist but none for this specific client
+                                if (response.matchedCount === 0 && response.products.length > 0) {
+                                    select.append('<option value="" disabled>--- Available loaned products (not specifically for this client) ---</option>');
+                                } else if (response.matchedCount > 0) {
+                                    select.append('<option value="" disabled>--- Products for ' + response.clientName + ' ---</option>');
+                                }
+                                
+                                response.products.forEach(function(product) {
+                                    select.append('<option value="' + product.SI + '" data-price="' + product.Price + '" data-product-name="' + product.ProductName + '" data-is-for-client="' + product.IsForThisClient + '">' + product.DisplayName + '</option>');
+                                });
+                                
+                                console.log('Loaded ' + response.products.length + ' loaned products for renewal');
+                            }
+                            
+                            // Initialize Select2 for searchable dropdown
+                            select.select2({
+                                placeholder: 'Type to search for a product...',
+                                allowClear: true,
+                                width: '100%',
+                                theme: 'bootstrap-5',
+                                dropdownParent: $('#renewalLoanModal')
+                            });
+                            
+                            // Handle product selection
+                            select.on('select2:select', function(e) {
+                                var selectedOption = $(this).find('option:selected');
+                                var si = selectedOption.val();
+                                var price = selectedOption.data('price');
+                                var productName = selectedOption.data('product-name');
+                                
+                                console.log('Renewal product selected - SI:', si, 'Price:', price, 'Name:', productName);
+                                
+                                // Store the inventory SI
+                                $('#renewalInventorySI').val(si);
+                                
+                                // Set loan amount from product price
+                                $('#renewalAmount').val(price);
+                                $('#renewalProductPrice').val(price);
+                                
+                                // Trigger computation with the price
+                                calculateRenewalSummary();
+                            });
+                            
+                        } else {
+                            console.error('Failed to load loaned products for renewal:', response);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error loading loaned products for renewal:', error);
+                        console.error('Response:', xhr.responseText);
+                    }
+                });
             }
 
             function loadRenewalFormDropdowns() {
@@ -1698,6 +1960,16 @@
                     if (renewalClientNameField) {
                         currentClientName = renewalClientNameField.value;
                     }
+                    
+                    // Destroy Select2 and reset loaned products dropdown
+                    if ($('#renewalProductDropdown').hasClass('select2-hidden-accessible')) {
+                        $('#renewalProductDropdown').select2('destroy');
+                    }
+                    $('#renewalProductDropdown').empty().append('<option value="">Select a loaned product...</option>');
+                    
+                    // Reset hidden fields
+                    $('#renewalInventorySI').val('');
+                    $('#renewalProductPrice').val('0');
                     
                     // Reset all form fields safely
                     var renewalLoanType = document.getElementById('renewalLoanType');
@@ -1852,7 +2124,8 @@
                     availment: document.getElementById('renewalAvailment').value,
                     amount: document.getElementById('renewalAmount').value,
                     downPaymentAmount: document.getElementById('renewalDownPaymentAmount').value,
-                    interest: document.getElementById('renewalSummaryInterest').value.replace(/,/g, '') // Add calculated interest
+                    interest: document.getElementById('renewalSummaryInterest').value.replace(/,/g, ''), // Add calculated interest
+                    inventory_si: document.getElementById('renewalInventorySI').value // Add inventory SI for linking
                 };
                 
                 // Validate required fields
@@ -1861,6 +2134,8 @@
                     alert('Please fill in all required fields.');
                     return;
                 }
+                
+                console.log('Renewal form data:', formData);
                 
                 // Submit via AJAX
                 fetch('/iSynApp-main/routes/accountsmonitoring/loantransaction.route.php', {

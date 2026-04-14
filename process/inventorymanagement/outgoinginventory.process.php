@@ -343,16 +343,45 @@ class Process extends Database
         $customerName = [];
 
         $customerType = $data['customerType'];
-        $stmt = $this->conn->prepare("SELECT DISTINCT Name FROM tbl_clientlist WHERE Type = ? ORDER BY Name");
-        $stmt->bind_param('s', $customerType);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result->num_rows > 0) {
-            while ($row = $result->fetch_assoc()) {
-                $customerName[] = $row;
+        
+        // If customer type is "MFI CLIENT" or "OTHER CLIENT", load from tbl_clientinfo
+        if ($customerType === 'MFI CLIENT' || $customerType === 'OTHER CLIENT') {
+            // Only show clients without pending loans (Balance = 0 or no loans at all)
+            $stmt = $this->conn->prepare("
+                SELECT c.ClientNo, c.ClientName, c.FirstName, c.LastName, c.MiddleName 
+                FROM tbl_clientinfo c
+                LEFT JOIN tbl_loans l ON c.ClientNo = l.ClientNo AND l.Balance > 0
+                WHERE l.ClientNo IS NULL
+                ORDER BY c.ClientName ASC
+            ");
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows > 0) {
+                while ($row = $result->fetch_assoc()) {
+                    $name = $row['ClientName'];
+                    
+                    // If ClientName is empty, construct from FirstName, LastName
+                    if (empty($name)) {
+                        $name = trim(($row['LastName'] ?? '') . ', ' . ($row['FirstName'] ?? '') . ' ' . ($row['MiddleName'] ?? ''));
+                    }
+                    
+                    $customerName[] = ['Name' => $name, 'ClientNo' => $row['ClientNo']];
+                }
             }
+            $stmt->close();
+        } else {
+            // Load from tbl_clientlist for other customer types
+            $stmt = $this->conn->prepare("SELECT DISTINCT Name FROM tbl_clientlist WHERE Type = ? ORDER BY Name");
+            $stmt->bind_param('s', $customerType);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows > 0) {
+                while ($row = $result->fetch_assoc()) {
+                    $customerName[] = $row;
+                }
+            }
+            $stmt->close();
         }
-        $stmt->close();
         
         echo json_encode(array(
             "CUSTOMERNAMELIST" => $customerName,
@@ -363,13 +392,39 @@ class Process extends Database
         $customerInfo = [];
 
         $customerName = $data['customerName'];
-        $stmt = $this->conn->prepare("SELECT * FROM tbl_clientlist WHERE Name = ?");
-        $stmt->bind_param('s', $customerName);
+        
+        // Try to load from tbl_clientinfo first
+        $stmt = $this->conn->prepare("SELECT ClientNo, ClientName, FirstName, LastName, MiddleName, TIN, FullAddress, StreetAdd, Barangay, CityTown, Province, Area FROM tbl_clientinfo WHERE ClientName = ? OR CONCAT(LastName, ', ', FirstName, ' ', COALESCE(MiddleName, '')) = ?");
+        $stmt->bind_param('ss', $customerName, $customerName);
         $stmt->execute();
         $result = $stmt->get_result();
+        
         if ($result->num_rows > 0) {
+            // Found in tbl_clientinfo
             $row = $result->fetch_assoc();
-            $customerInfo[] = $row;
+            $customerInfo[] = [
+                'Name' => $row['ClientName'] ?: trim(($row['LastName'] ?? '') . ', ' . ($row['FirstName'] ?? '') . ' ' . ($row['MiddleName'] ?? '')),
+                'TIN' => $row['TIN'] ?? '',
+                'Address' => $row['FullAddress'] ?? '',
+                'FullAddress' => $row['FullAddress'] ?? '',
+                'StreetAdd' => $row['StreetAdd'] ?? '',
+                'Barangay' => $row['Barangay'] ?? '',
+                'CityTown' => $row['CityTown'] ?? '',
+                'Province' => $row['Province'] ?? '',
+                'ClientNo' => $row['ClientNo'],
+                'Area' => $row['Area'] ?? '-'
+            ];
+        } else {
+            // Fallback to tbl_clientlist
+            $stmt->close();
+            $stmt = $this->conn->prepare("SELECT * FROM tbl_clientlist WHERE Name = ?");
+            $stmt->bind_param('s', $customerName);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows > 0) {
+                $row = $result->fetch_assoc();
+                $customerInfo[] = $row;
+            }
         }
         $stmt->close();
         
@@ -426,6 +481,10 @@ class Process extends Database
         $mark = $data['mark'];
         $Tmark = $data['Tmark'];
         $warranty = $data['Warranty'];
+        
+        // LOAN handling
+        $isLoan = isset($data['isLoan']) ? $data['isLoan'] : 'NO';
+        $loanId = NULL; // Will be assigned later in Loan Transaction page
 
         $consignList = [];
 
@@ -435,6 +494,14 @@ class Process extends Database
 
         // Used temporarily until current date encoding
         $dateAdded = $data['transactionDate'];
+        
+        // Convert date from MM/DD/YYYY to YYYY-MM-DD for MySQL
+        if (!empty($dateAdded)) {
+            $dateObj = DateTime::createFromFormat('m/d/Y', $dateAdded);
+            if ($dateObj) {
+                $dateAdded = $dateObj->format('Y-m-d');
+            }
+        }
 
         $user = $_SESSION['USERNAME'];
 
@@ -561,8 +628,22 @@ class Process extends Database
                 $Department = "-";
             }
             
-            $stmt1 = $this->conn->prepare("INSERT INTO tbl_transaction (SupplierSI, Serialno, Product, Supplier, Category, Type, Quantity, DealerPrice, TotalPrice, SRP, TotalSRP, Markup, TotalMarkup, VatSales, VAT, AmountDue, DateAdded, User, Soldto, TIN, Address, Status, Stock, Branch, itemConsign, myClient, Area, Department, DiscProduct, DiscInterest, DiscAmount, DiscNewSRP, DiscNewTotalSRP, Warranty) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-            $stmt1->bind_param('ssssssssssssssssssssssssssssssssss', $supplierSI, $serialNo, $productName, $supplierName, $categ, $type, $qtyMS, $psDealerPrice, $vatMS, $srpMS, $totalCostMS, $mark, $Tmark, $vatSales, $vat, $amountDue, $dateAdded, $user, $customerName, $tin, $address, $status, $consignBranch, $isynBranch, $consignmentStatus, $ClientType, $Area, $Department, $addDiscount, $discInterest, $discAmtMS, $newSRPMS, $totalDiscountMS, $warranty);
+            // Check if ISLOAN and LOANID columns exist in tbl_transaction
+            $hasLoanColumns = false;
+            $checkColumns = $this->conn->query("SHOW COLUMNS FROM tbl_transaction LIKE 'ISLOAN'");
+            if ($checkColumns && $checkColumns->num_rows > 0) {
+                $hasLoanColumns = true;
+            }
+            
+            if ($hasLoanColumns) {
+                // Insert with LOAN columns
+                $stmt1 = $this->conn->prepare("INSERT INTO tbl_transaction (SupplierSI, Serialno, Product, Supplier, Category, Type, Quantity, DealerPrice, TotalPrice, SRP, TotalSRP, Markup, TotalMarkup, VatSales, VAT, AmountDue, DateAdded, User, Soldto, TIN, Address, Status, Stock, Branch, itemConsign, myClient, Area, Department, DiscProduct, DiscInterest, DiscAmount, DiscNewSRP, DiscNewTotalSRP, Warranty, ISLOAN, LOANID) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                $stmt1->bind_param('sssssssssssssssssssssssssssssssssssi', $supplierSI, $serialNo, $productName, $supplierName, $categ, $type, $qtyMS, $psDealerPrice, $vatMS, $srpMS, $totalCostMS, $mark, $Tmark, $vatSales, $vat, $amountDue, $dateAdded, $user, $customerName, $tin, $address, $status, $consignBranch, $isynBranch, $consignmentStatus, $ClientType, $Area, $Department, $addDiscount, $discInterest, $discAmtMS, $newSRPMS, $totalDiscountMS, $warranty, $isLoan, $loanId);
+            } else {
+                // Insert without LOAN columns (backward compatibility)
+                $stmt1 = $this->conn->prepare("INSERT INTO tbl_transaction (SupplierSI, Serialno, Product, Supplier, Category, Type, Quantity, DealerPrice, TotalPrice, SRP, TotalSRP, Markup, TotalMarkup, VatSales, VAT, AmountDue, DateAdded, User, Soldto, TIN, Address, Status, Stock, Branch, itemConsign, myClient, Area, Department, DiscProduct, DiscInterest, DiscAmount, DiscNewSRP, DiscNewTotalSRP, Warranty) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                $stmt1->bind_param('ssssssssssssssssssssssssssssssssss', $supplierSI, $serialNo, $productName, $supplierName, $categ, $type, $qtyMS, $psDealerPrice, $vatMS, $srpMS, $totalCostMS, $mark, $Tmark, $vatSales, $vat, $amountDue, $dateAdded, $user, $customerName, $tin, $address, $status, $consignBranch, $isynBranch, $consignmentStatus, $ClientType, $Area, $Department, $addDiscount, $discInterest, $discAmtMS, $newSRPMS, $totalDiscountMS, $warranty);
+            }
             $stmt1->execute();
             $stmt1->close();
 
@@ -678,6 +759,25 @@ class Process extends Database
             $stmt->close();
         }
         echo json_encode(array("REGION" => $list));
+    }
+    
+    public function GetRegionByProvince($data){
+        $this->resolveBarangayTableName();
+        $province = $data['province'];
+        $region = '';
+        
+        $stmt = $this->conn->prepare("SELECT DISTINCT Region FROM ".$this->barangayTableName." WHERE Province = ? LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param('s', $province);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows > 0) {
+                $row = $result->fetch_assoc();
+                $region = $row['Region'];
+            }
+            $stmt->close();
+        }
+        echo json_encode(array("REGION" => $region));
     }
 
     public function LoadProvince($data){
@@ -956,6 +1056,14 @@ class Process extends Database
             $Department = "";
 
             $dateAdded = $data['transactionDate'];
+            
+            // Convert date from MM/DD/YYYY to YYYY-MM-DD for MySQL
+            if (!empty($dateAdded)) {
+                $dateObj = DateTime::createFromFormat('m/d/Y', $dateAdded);
+                if ($dateObj) {
+                    $dateAdded = $dateObj->format('Y-m-d');
+                }
+            }
 
             $values = "";
 
@@ -1392,7 +1500,31 @@ class Process extends Database
                     $stmt->execute();
                     $stmt->close();
 
-                    $stmt = $this->conn->prepare("INSERT INTO tbl_inventoryout (SI, SupplierSI, Batchno, Serialno, Product, Supplier, Category, Type, Quantity, DealerPrice, TotalPrice, SRP, TotalSRP, Markup, TotalMarkup, VatSales, VAT, AmountDue, DateAdded, User, Soldto, TIN, Address, Status, Stock, Branch, itemConsign, myClient, Area, Department, DiscProduct, DiscInterest, DiscAmount, DiscNewSRP, DiscNewTotalSRP, Warranty, imgname) SELECT SI, SupplierSI, COALESCE(Batchno,'0') AS Batchno, Serialno, Product, Supplier, Category, Type, Quantity, DealerPrice, TotalPrice, SRP, TotalSRP, Markup, TotalMarkup, VatSales, VAT, AmountDue, DateAdded, User, Soldto, TIN, Address, Status, Stock, Branch, itemConsign, myClient, Area, Department, DiscProduct, DiscInterest, DiscAmount, DiscNewSRP, DiscNewTotalSRP, Warranty, imgname FROM tbl_transaction WHERE User = ? AND Soldto = ? AND SI = ?");
+                    // Check if ISLOAN and LOANID columns exist in tbl_inventoryout
+                    $hasLoanColumnsOut = false;
+                    $checkColumnsOut = $this->conn->query("SHOW COLUMNS FROM tbl_inventoryout LIKE 'ISLOAN'");
+                    if ($checkColumnsOut && $checkColumnsOut->num_rows > 0) {
+                        $hasLoanColumnsOut = true;
+                    }
+                    
+                    // Check if ISLOAN and LOANID columns exist in tbl_transaction
+                    $hasLoanColumnsTransaction = false;
+                    $checkColumnsTransaction = $this->conn->query("SHOW COLUMNS FROM tbl_transaction LIKE 'ISLOAN'");
+                    if ($checkColumnsTransaction && $checkColumnsTransaction->num_rows > 0) {
+                        $hasLoanColumnsTransaction = true;
+                    }
+                    
+                    if ($hasLoanColumnsOut && $hasLoanColumnsTransaction) {
+                        // Both tables have LOAN columns - copy from transaction
+                        $stmt = $this->conn->prepare("INSERT INTO tbl_inventoryout (SI, SupplierSI, Batchno, Serialno, Product, Supplier, Category, Type, Quantity, DealerPrice, TotalPrice, SRP, TotalSRP, Markup, TotalMarkup, VatSales, VAT, AmountDue, DateAdded, User, Soldto, TIN, Address, Status, Stock, Branch, itemConsign, myClient, Area, Department, DiscProduct, DiscInterest, DiscAmount, DiscNewSRP, DiscNewTotalSRP, Warranty, imgname, ISLOAN, LOANID) SELECT SI, SupplierSI, COALESCE(Batchno,'0') AS Batchno, Serialno, Product, Supplier, Category, Type, Quantity, DealerPrice, TotalPrice, SRP, TotalSRP, Markup, TotalMarkup, VatSales, VAT, AmountDue, DateAdded, User, Soldto, TIN, Address, Status, Stock, Branch, itemConsign, myClient, Area, Department, DiscProduct, DiscInterest, DiscAmount, DiscNewSRP, DiscNewTotalSRP, Warranty, imgname, ISLOAN, LOANID FROM tbl_transaction WHERE User = ? AND Soldto = ? AND SI = ?");
+                    } else if ($hasLoanColumnsOut && !$hasLoanColumnsTransaction) {
+                        // Only tbl_inventoryout has LOAN columns - use default values
+                        $stmt = $this->conn->prepare("INSERT INTO tbl_inventoryout (SI, SupplierSI, Batchno, Serialno, Product, Supplier, Category, Type, Quantity, DealerPrice, TotalPrice, SRP, TotalSRP, Markup, TotalMarkup, VatSales, VAT, AmountDue, DateAdded, User, Soldto, TIN, Address, Status, Stock, Branch, itemConsign, myClient, Area, Department, DiscProduct, DiscInterest, DiscAmount, DiscNewSRP, DiscNewTotalSRP, Warranty, imgname, ISLOAN, LOANID) SELECT SI, SupplierSI, COALESCE(Batchno,'0') AS Batchno, Serialno, Product, Supplier, Category, Type, Quantity, DealerPrice, TotalPrice, SRP, TotalSRP, Markup, TotalMarkup, VatSales, VAT, AmountDue, DateAdded, User, Soldto, TIN, Address, Status, Stock, Branch, itemConsign, myClient, Area, Department, DiscProduct, DiscInterest, DiscAmount, DiscNewSRP, DiscNewTotalSRP, Warranty, imgname, 'NO', NULL FROM tbl_transaction WHERE User = ? AND Soldto = ? AND SI = ?");
+                    } else {
+                        // Neither table has LOAN columns (backward compatibility)
+                        $stmt = $this->conn->prepare("INSERT INTO tbl_inventoryout (SI, SupplierSI, Batchno, Serialno, Product, Supplier, Category, Type, Quantity, DealerPrice, TotalPrice, SRP, TotalSRP, Markup, TotalMarkup, VatSales, VAT, AmountDue, DateAdded, User, Soldto, TIN, Address, Status, Stock, Branch, itemConsign, myClient, Area, Department, DiscProduct, DiscInterest, DiscAmount, DiscNewSRP, DiscNewTotalSRP, Warranty, imgname) SELECT SI, SupplierSI, COALESCE(Batchno,'0') AS Batchno, Serialno, Product, Supplier, Category, Type, Quantity, DealerPrice, TotalPrice, SRP, TotalSRP, Markup, TotalMarkup, VatSales, VAT, AmountDue, DateAdded, User, Soldto, TIN, Address, Status, Stock, Branch, itemConsign, myClient, Area, Department, DiscProduct, DiscInterest, DiscAmount, DiscNewSRP, DiscNewTotalSRP, Warranty, imgname FROM tbl_transaction WHERE User = ? AND Soldto = ? AND SI = ?");
+                    }
+                    
                     $stmt->bind_param('sss', $user, $selectedSoldto, $SalesInvoice);
                     $stmt->execute();
                     $rowsOut = $stmt->affected_rows;

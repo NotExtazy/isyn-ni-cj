@@ -516,17 +516,189 @@ try {
             break;
             
         case 'getClients':
-            $query = "SELECT ClientNo, ClientName FROM tbl_clientinfo ORDER BY ClientName ASC";
+            // Fetch all clients from tbl_clientinfo with their loan status
+            $query = "SELECT c.ClientNo, c.ClientName, c.FirstName, c.LastName, c.MiddleName,
+                             COUNT(l.LoanID) as TotalLoans,
+                             SUM(CASE WHEN l.Balance > 0 THEN 1 ELSE 0 END) as ActiveLoans,
+                             SUM(CASE WHEN l.Balance > 0 THEN l.Balance ELSE 0 END) as TotalBalance
+                      FROM tbl_clientinfo c
+                      LEFT JOIN tbl_loans l ON c.ClientNo = l.ClientNo
+                      GROUP BY c.ClientNo, c.ClientName, c.FirstName, c.LastName, c.MiddleName
+                      ORDER BY c.ClientName ASC";
             $result = $conn->query($query);
             
             $clients = [];
             if ($result && $result->num_rows > 0) {
                 while ($row = $result->fetch_assoc()) {
-                    $clients[] = $row;
+                    $clientName = $row['ClientName'];
+                    
+                    // If ClientName is empty, construct from FirstName, LastName
+                    if (empty($clientName)) {
+                        $clientName = trim(($row['LastName'] ?? '') . ', ' . ($row['FirstName'] ?? '') . ' ' . ($row['MiddleName'] ?? ''));
+                    }
+                    
+                    $clients[] = [
+                        'ClientNo' => $row['ClientNo'],
+                        'ClientName' => $clientName,
+                        'TotalLoans' => intval($row['TotalLoans']),
+                        'ActiveLoans' => intval($row['ActiveLoans']),
+                        'TotalBalance' => floatval($row['TotalBalance']),
+                        'HasPendingLoans' => (intval($row['ActiveLoans']) > 0)
+                    ];
                 }
             }
             
             echo json_encode(['success' => true, 'clients' => $clients]);
+            break;
+            
+        case 'getAllClients':
+            // Fetch all clients from tbl_clientinfo who don't have active loans
+            // Active loan = Balance > 0 in tbl_loans
+            $query = "SELECT c.ClientNo, c.ClientName, c.FirstName, c.LastName, c.MiddleName 
+                      FROM tbl_clientinfo c
+                      LEFT JOIN tbl_loans l ON c.ClientNo = l.ClientNo AND l.Balance > 0
+                      WHERE l.ClientNo IS NULL
+                      ORDER BY c.ClientName ASC";
+            $result = $conn->query($query);
+            
+            $clients = [];
+            if ($result && $result->num_rows > 0) {
+                while ($row = $result->fetch_assoc()) {
+                    $clientName = $row['ClientName'];
+                    
+                    // If ClientName is empty, construct from FirstName, LastName
+                    if (empty($clientName)) {
+                        $clientName = trim(($row['LastName'] ?? '') . ', ' . ($row['FirstName'] ?? '') . ' ' . ($row['MiddleName'] ?? ''));
+                    }
+                    
+                    $clients[] = [
+                        'ClientNo' => $row['ClientNo'],
+                        'ClientName' => $clientName
+                    ];
+                }
+            }
+            
+            echo json_encode(['success' => true, 'clients' => $clients, 'count' => count($clients)]);
+            break;
+            
+        case 'getLoanedProductsForClient':
+            // Get available loaned products for a specific client
+            // Products where ISLOAN='YES' and LOANID IS NULL (not yet assigned to a loan)
+            $clientNo = $_GET['client_no'] ?? '';
+            if (empty($clientNo)) {
+                echo json_encode(['success' => false, 'message' => 'Client number required']);
+                break;
+            }
+            
+            $clientNo = $conn->real_escape_string($clientNo);
+            
+            // First, get the client name
+            $clientNameQuery = "SELECT ClientName, FirstName, LastName, MiddleName FROM tbl_clientinfo WHERE ClientNo = '$clientNo' LIMIT 1";
+            $clientNameResult = $conn->query($clientNameQuery);
+            $clientName = '';
+            
+            if ($clientNameResult && $clientNameResult->num_rows > 0) {
+                $clientRow = $clientNameResult->fetch_assoc();
+                $clientName = $clientRow['ClientName'];
+                
+                // If ClientName is empty, construct from FirstName, LastName
+                if (empty($clientName)) {
+                    $clientName = trim(($clientRow['LastName'] ?? '') . ', ' . ($clientRow['FirstName'] ?? '') . ' ' . ($clientRow['MiddleName'] ?? ''));
+                }
+            }
+            
+            // Get loaned products that are not yet assigned to a loan
+            // Try to match by client name, but if none found, show all available loaned products
+            $query = "SELECT SI, Product, Soldto, Quantity, DealerPrice, TotalPrice, DateAdded 
+                      FROM tbl_inventoryout 
+                      WHERE ISLOAN = 'YES' 
+                      AND (LOANID IS NULL OR LOANID = '')
+                      ORDER BY 
+                        CASE WHEN Soldto = '$clientName' THEN 0 ELSE 1 END,
+                        DateAdded DESC, 
+                        Product ASC";
+            $result = $conn->query($query);
+            
+            $products = [];
+            $matchedProducts = 0;
+            
+            if ($result && $result->num_rows > 0) {
+                while ($row = $result->fetch_assoc()) {
+                    $isForThisClient = ($row['Soldto'] === $clientName);
+                    if ($isForThisClient) {
+                        $matchedProducts++;
+                    }
+                    
+                    $displayName = $row['Product'] . ' (Qty: ' . $row['Quantity'] . ')';
+                    
+                    // Add client indicator if product is for a different client
+                    if (!empty($row['Soldto']) && !$isForThisClient) {
+                        $displayName .= ' - For: ' . $row['Soldto'];
+                    }
+                    
+                    $displayName .= ' - Added: ' . date('M d, Y', strtotime($row['DateAdded']));
+                    
+                    $products[] = [
+                        'SI' => $row['SI'],
+                        'ProductName' => $row['Product'],
+                        'DisplayName' => $displayName,
+                        'Quantity' => $row['Quantity'],
+                        'Price' => floatval($row['TotalPrice']),
+                        'DealerPrice' => floatval($row['DealerPrice']),
+                        'DateAdded' => $row['DateAdded'],
+                        'Soldto' => $row['Soldto'],
+                        'IsForThisClient' => $isForThisClient
+                    ];
+                }
+            }
+            
+            echo json_encode([
+                'success' => true, 
+                'products' => $products, 
+                'count' => count($products),
+                'matchedCount' => $matchedProducts,
+                'clientName' => $clientName,
+                'debug' => [
+                    'clientNo' => $clientNo,
+                    'clientName' => $clientName,
+                    'totalAvailable' => count($products),
+                    'matchedToClient' => $matchedProducts
+                ]
+            ]);
+            break;
+            
+        case 'getLoanedProductDetails':
+            // Get detailed information about a loaned product
+            $si = $_GET['si'] ?? '';
+            if (empty($si)) {
+                echo json_encode(['success' => false, 'message' => 'SI required']);
+                break;
+            }
+            
+            $si = $conn->real_escape_string($si);
+            $query = "SELECT SI, Product, Soldto, Quantity, DealerPrice, TotalPrice, DateAdded, ISLOAN, LOANID 
+                      FROM tbl_inventoryout 
+                      WHERE SI = '$si' AND ISLOAN = 'YES' 
+                      LIMIT 1";
+            $result = $conn->query($query);
+            
+            if ($result && $result->num_rows > 0) {
+                $product = $result->fetch_assoc();
+                echo json_encode([
+                    'success' => true,
+                    'product' => [
+                        'SI' => $product['SI'],
+                        'ProductName' => $product['Product'],
+                        'ClientName' => $product['Soldto'],
+                        'Quantity' => $product['Quantity'],
+                        'Price' => floatval($product['TotalPrice']),
+                        'DealerPrice' => floatval($product['DealerPrice']),
+                        'DateAdded' => $product['DateAdded']
+                    ]
+                ]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Product not found']);
+            }
             break;
             
         case 'getStaff':
@@ -597,7 +769,7 @@ try {
         case 'getClientLoans':
             $clientId = $_GET['client_id'] ?? '';
             if (empty($clientId)) {
-                echo '<tr><td colspan="11" class="text-center">Please select a client</td></tr>';
+                echo '<tr><td colspan="12" class="text-center">Please select a client</td></tr>';
                 break;
             }
             
@@ -668,7 +840,57 @@ try {
                     echo '<td>' . $loanId . '</td>';
                     echo '<td>' . $fullName . '</td>';
                     echo '<td>' . htmlspecialchars($row['Program'] ?? '') . '</td>';
-                    echo '<td>' . htmlspecialchars($row['Product'] ?? '') . '</td>';
+                    
+                    // Product column - show product name
+                    $productName = htmlspecialchars($row['Product'] ?? '');
+                    echo '<td>' . $productName . '</td>';
+                    
+                    // Product Details column - show inventory details if available
+                    echo '<td style="min-width: 150px;">';
+                    $hasProductDetails = false;
+                    $productDetailsArray = [];
+                    
+                    // Check if inventory columns exist and have data
+                    if (isset($row['SI']) && !empty($row['SI'])) {
+                        $productDetailsArray[] = '<strong>SI:</strong> ' . htmlspecialchars($row['SI']);
+                        $hasProductDetails = true;
+                    }
+                    if (isset($row['Serialno']) && !empty($row['Serialno'])) {
+                        $productDetailsArray[] = '<strong>Serial:</strong> ' . htmlspecialchars($row['Serialno']);
+                        $hasProductDetails = true;
+                    }
+                    if (isset($row['Supplier']) && !empty($row['Supplier'])) {
+                        $productDetailsArray[] = '<strong>Supplier:</strong> ' . htmlspecialchars($row['Supplier']);
+                        $hasProductDetails = true;
+                    }
+                    if (isset($row['Category']) && !empty($row['Category'])) {
+                        $productDetailsArray[] = '<strong>Category:</strong> ' . htmlspecialchars($row['Category']);
+                        $hasProductDetails = true;
+                    }
+                    if (isset($row['Warranty']) && !empty($row['Warranty'])) {
+                        $productDetailsArray[] = '<strong>Warranty:</strong> ' . htmlspecialchars($row['Warranty']);
+                        $hasProductDetails = true;
+                    }
+                    if (isset($row['Quantity']) && !empty($row['Quantity']) && $row['Quantity'] > 0) {
+                        $productDetailsArray[] = '<strong>Qty:</strong> ' . htmlspecialchars($row['Quantity']);
+                        $hasProductDetails = true;
+                    }
+                    
+                    if ($hasProductDetails) {
+                        // Display details inline with line breaks
+                        echo '<div style="font-size: 0.85rem; line-height: 1.6;">';
+                        echo implode('<br>', $productDetailsArray);
+                        echo '</div>';
+                    } else {
+                        // Check if columns exist in the result
+                        $columnExists = array_key_exists('SI', $row);
+                        if ($columnExists) {
+                            echo '<span class="text-muted" style="font-size: 0.85rem;">No inventory details</span>';
+                        } else {
+                            echo '<span class="text-warning" style="font-size: 0.85rem;" title="Product detail columns not found in database"><i class="fas fa-exclamation-triangle"></i> Columns missing</span>';
+                        }
+                    }
+                    echo '</td>';
                     
                     // Try multiple date field names
                     $dateReleased = $row['DateRelease'] ?? $row['DateReleased'] ?? $row['ReleaseDate'] ?? '';
@@ -712,7 +934,7 @@ try {
                     echo '</tr>';
                 }
             } else {
-                echo '<tr><td colspan="11" class="text-center text-muted">No loans found for this client</td></tr>';
+                echo '<tr><td colspan="12" class="text-center text-muted">No loans found for this client</td></tr>';
             }
             break;
             
@@ -1286,6 +1508,61 @@ try {
                 // DEBUG: Log the actual values before INSERT
                 error_log("DEBUG BEFORE INSERT - ClientNo: $clientNo, ClientName: $clientName, Sector: $sector, BizNature: $bizNature");
                 
+                // Fetch inventory product details if this is a loaned product
+                // Using exact same column names as tbl_inventoryout
+                $inventorySI = '';
+                $inventorySerialno = '';
+                $inventorySupplier = '';
+                $inventoryCategory = '';
+                $inventoryWarranty = '';
+                $inventoryQuantity = 0;
+                $inventoryProductName = ''; // Add this to store the actual product name from inventory
+                
+                // Get the inventory SI from the form data
+                $submittedInventorySI = $conn->real_escape_string($data['inventory_si'] ?? '');
+                
+                if (!empty($submittedInventorySI)) {
+                    // Fetch inventory product details from tbl_inventoryout
+                    $inventoryQuery = "SELECT SI, Product, Quantity, Serialno, Supplier, Category, Warranty 
+                                      FROM tbl_inventoryout 
+                                      WHERE SI = '$submittedInventorySI' AND ISLOAN = 'YES' 
+                                      LIMIT 1";
+                    $inventoryResult = $conn->query($inventoryQuery);
+                    
+                    if ($inventoryResult && $inventoryResult->num_rows > 0) {
+                        $inventoryRow = $inventoryResult->fetch_assoc();
+                        $inventorySI = $inventoryRow['SI'];
+                        $inventoryProductName = $inventoryRow['Product'] ?? ''; // Get the actual product name
+                        $inventorySerialno = $inventoryRow['Serialno'] ?? '';
+                        $inventorySupplier = $inventoryRow['Supplier'] ?? '';
+                        $inventoryCategory = $inventoryRow['Category'] ?? '';
+                        $inventoryWarranty = $inventoryRow['Warranty'] ?? '';
+                        $inventoryQuantity = intval($inventoryRow['Quantity']);
+                        
+                        error_log("DEBUG: Found inventory product - SI: $inventorySI, Product: $inventoryProductName, Quantity: $inventoryQuantity");
+                        
+                        // Update the LOANID in tbl_inventoryout to link it to this loan
+                        $updateInventoryQuery = "UPDATE tbl_inventoryout 
+                                                SET LOANID = '$loanId' 
+                                                WHERE SI = '$inventorySI'";
+                        if (!$conn->query($updateInventoryQuery)) {
+                            error_log("WARNING: Failed to update LOANID in tbl_inventoryout: " . $conn->error);
+                        } else {
+                            error_log("SUCCESS: Updated LOANID in tbl_inventoryout for SI: $inventorySI");
+                        }
+                        
+                        // Override the Product field with the actual product name from inventory if available
+                        if (!empty($inventoryProductName)) {
+                            $product = $conn->real_escape_string($inventoryProductName);
+                            error_log("DEBUG: Overriding Product field with inventory product name: $product");
+                        }
+                    } else {
+                        error_log("WARNING: No inventory product found for SI: $submittedInventorySI");
+                    }
+                } else {
+                    error_log("DEBUG: No inventory_si provided, this is a regular loan without loaned product");
+                }
+                
                 $insertQuery = "INSERT INTO tbl_loans (
                     LoanID, ClientNo, FullName, LoanType, Tag, PO, Program, Product, Mode, 
                     Term, InterestRate, LoanAmount, Balance, LoanStatus,
@@ -1293,7 +1570,8 @@ try {
                     BizCapital, Workers, MoIncome,
                     CBU, EF, Interest, MBA, PrincipalAmo, InterestAmo,
                     IntType, CBURate, CBUType, EFRate, EFType, IntComputation,
-                    LRSType, DateRelease, DateMature, DatePrepared, PreparedBy" . 
+                    LRSType, DateRelease, DateMature, DatePrepared, PreparedBy,
+                    SI, Serialno, Supplier, Category, Warranty, Quantity" . 
                     ($includeRenewId && $isRenewal ? ", RenewID" : "") . "
                 ) VALUES (
                     '$loanId', '$clientNo', '$clientName', '$loanType', '$tag', '$staff', '$program', '$product', '$mode',
@@ -1302,7 +1580,13 @@ try {
                     $bizCapital, '$workers', $moIncome,
                     $cbu, $ef, $interestAmount, $mba, $principalAmount, $interestAmount,
                     '$intType', $cbuRate, '$cbuType', $efRate, '$efType', '$intComputation',
-                    'CLIENT', '$currentDate', '$dateMature', '$currentDate', '$addedBy'" .
+                    'CLIENT', '$currentDate', '$dateMature', '$currentDate', '$addedBy',
+                    " . ($inventorySI ? "'$inventorySI'" : "NULL") . ", 
+                    " . ($inventorySerialno ? "'$inventorySerialno'" : "NULL") . ", 
+                    " . ($inventorySupplier ? "'$inventorySupplier'" : "NULL") . ", 
+                    " . ($inventoryCategory ? "'$inventoryCategory'" : "NULL") . ", 
+                    " . ($inventoryWarranty ? "'$inventoryWarranty'" : "NULL") . ", 
+                    " . ($inventoryQuantity > 0 ? $inventoryQuantity : "NULL") . 
                     ($includeRenewId && $isRenewal ? ", '$renewId'" : "") . "
                 )";
                 

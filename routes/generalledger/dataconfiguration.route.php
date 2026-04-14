@@ -1,7 +1,11 @@
 <?php
 // Data Configuration Route Handler
+ob_start(); // Start output buffering to catch any stray output
+
 $processPath = $_SERVER['DOCUMENT_ROOT'] . '/iSynApp-main/process/generalledger/dataconfiguration.process.php';
 include_once($processPath);
+
+ob_end_clean(); // Clear any output from the include
 
 $process = new DataConfigurationProcess();
 
@@ -89,6 +93,20 @@ switch ($action) {
         echo json_encode($result);
         break;
 
+    case 'LockYearEnd':
+        $fund = $_POST['fund'] ?? '';
+        $yearendDate = $_POST['yearendDate'] ?? '';
+        $result = $process->LockYearEnd($fund, $yearendDate);
+        echo json_encode($result);
+        break;
+
+    case 'UnlockYearEnd':
+        $fund = $_POST['fund'] ?? '';
+        $yearendDate = $_POST['yearendDate'] ?? '';
+        $result = $process->UnlockYearEnd($fund, $yearendDate);
+        echo json_encode($result);
+        break;
+
     // ═══════════════════════════════════════════════════════════════════════
     // TAB 4: BUDGET VARIANCE
     // ═══════════════════════════════════════════════════════════════════════
@@ -99,13 +117,21 @@ switch ($action) {
         echo json_encode($result);
         break;
 
-    case 'SaveBudgetData':
+    case 'SaveBudgetAmount':
         $fund = $_POST['fund'] ?? '';
         $acctno = $_POST['acctno'] ?? '';
         $accttitle = $_POST['accttitle'] ?? '';
         $budgetAmount = $_POST['budgetAmount'] ?? 0;
         $budgetMonth = $_POST['budgetMonth'] ?? '';
-        $result = $process->SaveBudgetData($fund, $acctno, $accttitle, $budgetAmount, $budgetMonth, $username);
+        $result = $process->SaveBudgetAmount($fund, $acctno, $accttitle, $budgetAmount, $budgetMonth);
+        echo json_encode($result);
+        break;
+
+    case 'CopyBudgetToMonth':
+        $fund = $_POST['fund'] ?? '';
+        $sourceMonth = $_POST['sourceMonth'] ?? '';
+        $targetMonth = $_POST['targetMonth'] ?? '';
+        $result = $process->CopyBudgetToMonth($fund, $sourceMonth, $targetMonth);
         echo json_encode($result);
         break;
 
@@ -120,7 +146,13 @@ switch ($action) {
     case 'SavePESOData':
         $itemName = $_POST['itemName'] ?? '';
         $itemValue = $_POST['itemValue'] ?? 0;
-        $result = $process->SavePESOData($itemName, $itemValue, $username);
+        $result = $process->SavePESOData($itemName, $itemValue);
+        echo json_encode($result);
+        break;
+
+    case 'DeletePESOData':
+        $itemName = $_POST['itemName'] ?? '';
+        $result = $process->DeletePESOData($itemName);
         echo json_encode($result);
         break;
 
